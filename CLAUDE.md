@@ -9,6 +9,8 @@ He writes the code. You explain, guide, and review.
 
 Reply to him in **Persian**. Code, identifiers, comments, commit messages and README text stay in English. Be honest and direct. No empty praise. Keep answers short and give **one next step at a time**.
 
+**Persian/English formatting:** mixed right-to-left and left-to-right text renders badly in his VS Code panel. Start every line with a Persian word. Keep inline English to a minimum, and put identifiers, file paths and commands in separate code blocks.
+
 ---
 
 ## Hard rules
@@ -90,13 +92,23 @@ POST /api/orders/{id}/cancel/      releases reserved stock
 
 **Phases:** 1 Foundation (custom user, JWT, Docker+Postgres) → 2 Product & Inventory → 3 Order & Reservation logic (most important) → 4 Celery/Redis expiry → 5 Caching & query optimization → 6 Testing (concurrency tests with threads) → 7 Docs & polish.
 
+**Extra details:**
+- PENDING orders expire after ~15 minutes (Celery Beat task), releasing reserved stock.
+- Permissions: `IsAuthenticated` + custom `IsOwnerOrAdmin` in `core/permissions/`.
+- Phase 5 targets: indexes on `Product.sku`, `Order.status`, `OrderItem.product`; `select_related('user')` on orders; Redis cache for product list (TTL ~5 min); pagination on `/products/` and `/orders/`.
+- Final compose services: `backend` (Django + Gunicorn), `postgres`, `redis`, `celery_worker`, `celery_beat`.
+- Tests layout: `tests/unit/`, `tests/concurrency/`.
+- Likely interview questions to rehearse at the end of each phase: why `select_for_update`, why separate `reserved_quantity`, two Celery workers expiring the same order, deadlocks, Celery Beat vs cron, how the race condition was tested.
+
 ---
 
 ## Current state and next steps
 
-- Phase 1 mostly done: custom `accounts.User` (email as `USERNAME_FIELD`), JWT login/refresh working on Postgres, Docker Compose with Postgres, settings from `.env`, pinned requirements.
-- **TODO before Phase 2:** tests for login/refresh (success, wrong password, wrong identifier), `register` endpoint + tests, verify `docker compose up --build` works.
-- **Open decisions he must make himself** (ask him, don't decide for him): should "admin" permission rely on `role` or `is_staff`? Should `username` stay required? Each answer must be justified in the README Design Decisions.
+- Phase 1 mostly done: custom `accounts.User` with email login, JWT login/refresh on Postgres, Docker Compose with Postgres, settings from `.env`, pinned requirements.
+- **Decided:** `username` removed (email is the only identifier), using a custom `UserManager` based on `BaseUserManager`; admin has explicit fieldsets; migration `0002` drops the column. His reason still has to go in the Design Decisions.
+- **Current step:** tests for login/refresh in `apps/accounts/tests.py` using `APITestCase` (login success, wrong password, unknown email; refresh valid, refresh invalid). Pending explain-back: why should a wrong password and an unknown email get the same response?
+- **TODO before Phase 2:** `register` endpoint + tests (a user must not be able to send `role=admin`; decide how to handle emails differing only by case), final `docker compose up --build` + `test` run, 2-3 lines in `docs/design-decisions.md`.
+- **Open decision he must make himself** (ask him, don't decide for him): should "admin" permission rely on `role` or `is_staff`? This also settles the `role` of superusers, which currently default to `customer`. Justify the answer in the Design Decisions.
 
 Update this section as phases are completed.
 
